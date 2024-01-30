@@ -56,7 +56,6 @@ strip = true
 
 [features]
 default = [
-    "logging",
     "hickory-dns",
     "local",
     "server",
@@ -95,8 +94,6 @@ dns-over-native-tls-vendored = [
 dns-over-https = ["shadowsocks-service/dns-over-https"]
 dns-over-h3 = ["shadowsocks-service/dns-over-h3"]
 
-# Enable logging output
-logging = ["log4rs"]
 
 # Enable DNS-relay
 local-dns = ["local", "shadowsocks-service/local-dns"]
