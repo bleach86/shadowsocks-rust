@@ -162,7 +162,7 @@ replay-attack-detect = [
 ] # Backward compatibility. DO NOT USE.
 
 [dependencies]
-log = "0.4"
+log = { version = "0.4", features = ["release_max_level_off"] }
 log4rs = { version = "1.2", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 json5 = "0.4"
