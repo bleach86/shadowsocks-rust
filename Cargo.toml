@@ -56,7 +56,6 @@ strip = true
 
 [features]
 default = [
-    "logging",
     "hickory-dns",
     "local",
     "server",
@@ -94,9 +93,6 @@ dns-over-native-tls-vendored = [
 ]
 dns-over-https = ["shadowsocks-service/dns-over-https"]
 dns-over-h3 = ["shadowsocks-service/dns-over-h3"]
-
-# Enable logging output
-logging = ["log4rs", "tracing", "tracing-subscriber", "time"]
 
 # Enable DNS-relay
 local-dns = ["local", "shadowsocks-service/local-dns"]
@@ -162,7 +158,7 @@ replay-attack-detect = [
 ] # Backward compatibility. DO NOT USE.
 
 [dependencies]
-log = "0.4"
+log = { version = "0.4", features = ["release_max_level_off"] }
 log4rs = { version = "1.2", optional = true }
 tracing = { version = "0.1", optional = true }
 tracing-subscriber = { version = "0.3", optional = true, features = [
