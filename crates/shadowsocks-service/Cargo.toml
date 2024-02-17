@@ -1,6 +1,6 @@
 [package]
 name = "shadowsocks-service"
-version = "1.17.2"
+version = "1.18.1"
 authors = ["Shadowsocks Contributors"]
 description = "shadowsocks is a fast tunnel proxy that helps you bypass firewalls."
 repository = "https://github.com/shadowsocks/shadowsocks-rust"
@@ -9,6 +9,7 @@ documentation = "https://docs.rs/shadowsocks-service"
 keywords = ["shadowsocks", "proxy", "socks", "socks5", "firewall"]
 license = "MIT"
 edition = "2021"
+rust-version = "1.71"
 
 [badges]
 maintenance = { status = "passively-maintained" }
@@ -161,7 +162,7 @@ iprange = "0.6"
 regex = "1.4"
 
 tun = { version = "0.6", optional = true, features = ["async"] }
-etherparse = { version = "0.13", optional = true }
+etherparse = { version = "0.14", optional = true }
 smoltcp = { version = "0.11", optional = true, default-features = false, features = [
     "std",
     "log",
@@ -176,10 +177,10 @@ smoltcp = { version = "0.11", optional = true, default-features = false, feature
 serde = { version = "1.0", features = ["derive"] }
 json5 = "0.4"
 
-shadowsocks = { version = "1.17.2", path = "../shadowsocks", default-features = false }
+shadowsocks = { version = "1.18.1", path = "../shadowsocks", default-features = false }
 
 # Just for the ioctl call macro
-[target.'cfg(any(target_os = "macos", target_os = "ios", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))'.dependencies]
+[target.'cfg(any(target_os = "macos", target_os = "ios", target_os = "freebsd"))'.dependencies]
 nix = { version = "0.27", features = ["ioctl"] }
 
 [target.'cfg(windows)'.dependencies]
@@ -187,7 +188,7 @@ windows-sys = { version = "0.52", features = ["Win32_Networking_WinSock"] }
 
 [dev-dependencies]
 byteorder = "1.5"
-env_logger = "0.10"
+env_logger = "0.11"
 
 [package.metadata.docs.rs]
 features = [
