@@ -243,8 +243,9 @@ thread_local! {
     static CLIENT_SESSION_RNG: RefCell<SmallRng> = RefCell::new(SmallRng::from_entropy());
 }
 
+/// Generate an AEAD-2022 Client SessionID
 #[inline]
-fn generate_client_session_id() -> u64 {
+pub fn generate_client_session_id() -> u64 {
     CLIENT_SESSION_RNG.with(|rng| rng.borrow_mut().gen())
 }
 
@@ -572,8 +573,7 @@ where
                 let svr_cfg = server.server_config();
 
                 let socket =
-                    ProxySocket::connect_with_opts(self.context.context(), svr_cfg, self.context.connect_opts_ref())
-                        .await?;
+                    ProxySocket::connect_with_opts(self.context.context(), svr_cfg, server.connect_opts_ref()).await?;
                 let socket = MonProxySocket::from_socket(socket, self.context.flow_stat());
 
                 self.proxied_socket.insert(socket)

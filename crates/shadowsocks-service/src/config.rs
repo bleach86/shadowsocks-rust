@@ -393,6 +393,12 @@ struct SSServerExtConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[cfg(any(target_os = "linux", target_os = "android"))]
     outbound_fwmark: Option<u32>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    outbound_bind_addr: Option<IpAddr>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    outbound_bind_interface: Option<String>,
 }
 
 /// Server config type
@@ -1178,9 +1184,11 @@ pub struct ServerInstanceConfig {
     pub config: ServerConfig,
     /// Server's private ACL, set to `None` will use the global `AccessControl`
     pub acl: Option<AccessControl>,
-    /// Server's outbound fwmark to support split tunnel
+    /// Server's outbound fwmark / address / interface to support split tunnel
     #[cfg(any(target_os = "linux", target_os = "android"))]
     pub outbound_fwmark: Option<u32>,
+    pub outbound_bind_addr: Option<IpAddr>,
+    pub outbound_bind_interface: Option<String>,
 }
 
 impl ServerInstanceConfig {
@@ -1191,6 +1199,8 @@ impl ServerInstanceConfig {
             acl: None,
             #[cfg(any(target_os = "linux", target_os = "android"))]
             outbound_fwmark: None,
+            outbound_bind_addr: None,
+            outbound_bind_interface: None,
         }
     }
 }
@@ -1518,8 +1528,12 @@ impl Config {
                     };
                     #[cfg(target_os = "macos")]
                     {
-                        local_config.launchd_tcp_socket_name = config.launchd_tcp_socket_name.clone();
-                        local_config.launchd_udp_socket_name = config.launchd_udp_socket_name.clone();
+                        local_config
+                            .launchd_tcp_socket_name
+                            .clone_from(&config.launchd_tcp_socket_name);
+                        local_config
+                            .launchd_udp_socket_name
+                            .clone_from(&config.launchd_udp_socket_name);
                     }
 
                     let local_instance = LocalInstanceConfig {
@@ -1861,11 +1875,25 @@ impl Config {
                     nsvr.set_timeout(timeout);
                 }
 
+                let mut outbound_bind_addr: Option<IpAddr> = None;
+
+                if let Some(ref bind_addr) = config.outbound_bind_addr {
+                    match bind_addr.parse::<IpAddr>() {
+                        Ok(b) => outbound_bind_addr = Some(b),
+                        Err(..) => {
+                            let err = Error::new(ErrorKind::Invalid, "invalid outbound_bind_addr", None);
+                            return Err(err);
+                        }
+                    }
+                }
+
                 let server_instance = ServerInstanceConfig {
                     config: nsvr,
                     acl: None,
                     #[cfg(any(target_os = "linux", target_os = "android"))]
                     outbound_fwmark: config.outbound_fwmark,
+                    outbound_bind_addr,
+                    outbound_bind_interface: config.outbound_bind_interface.clone(),
                 };
 
                 nconfig.server.push(server_instance);
@@ -2029,11 +2057,25 @@ impl Config {
                     nsvr.set_weight(weight);
                 }
 
+                let mut outbound_bind_addr: Option<IpAddr> = None;
+
+                if let Some(ref bind_addr) = config.outbound_bind_addr {
+                    match bind_addr.parse::<IpAddr>() {
+                        Ok(b) => outbound_bind_addr = Some(b),
+                        Err(..) => {
+                            let err = Error::new(ErrorKind::Invalid, "invalid outbound_bind_addr", None);
+                            return Err(err);
+                        }
+                    }
+                }
+
                 let mut server_instance = ServerInstanceConfig {
                     config: nsvr,
                     acl: None,
                     #[cfg(any(target_os = "linux", target_os = "android"))]
                     outbound_fwmark: config.outbound_fwmark,
+                    outbound_bind_addr,
+                    outbound_bind_interface: config.outbound_bind_interface.clone(),
                 };
 
                 if let Some(acl_path) = svr.acl {
@@ -2054,6 +2096,14 @@ impl Config {
                 #[cfg(any(target_os = "linux", target_os = "android"))]
                 if let Some(outbound_fwmark) = svr.outbound_fwmark {
                     server_instance.outbound_fwmark = Some(outbound_fwmark);
+                }
+
+                if let Some(outbound_bind_addr) = svr.outbound_bind_addr {
+                    server_instance.outbound_bind_addr = Some(outbound_bind_addr);
+                }
+
+                if let Some(ref outbound_bind_interface) = svr.outbound_bind_interface {
+                    server_instance.outbound_bind_interface = Some(outbound_bind_interface.clone());
                 }
 
                 nconfig.server.push(server_instance);
@@ -2567,8 +2617,8 @@ impl fmt::Display for Config {
 
                 #[cfg(target_os = "macos")]
                 {
-                    jconf.launchd_tcp_socket_name = local.launchd_tcp_socket_name.clone();
-                    jconf.launchd_udp_socket_name = local.launchd_udp_socket_name.clone();
+                    jconf.launchd_tcp_socket_name.clone_from(&local.launchd_tcp_socket_name);
+                    jconf.launchd_udp_socket_name.clone_from(&local.launchd_udp_socket_name);
                 }
 
                 if local.protocol != ProtocolType::Socks {
@@ -2829,7 +2879,9 @@ impl fmt::Display for Config {
                             .as_ref()
                             .and_then(|a| a.file_path().to_str().map(ToOwned::to_owned)),
                         #[cfg(any(target_os = "linux", target_os = "android"))]
-                        outbound_fwmark: inst.outbound_fwmark.clone(),
+                        outbound_fwmark: inst.outbound_fwmark,
+                        outbound_bind_addr: inst.outbound_bind_addr,
+                        outbound_bind_interface: inst.outbound_bind_interface.clone(),
                     });
                 }
 
@@ -2933,7 +2985,7 @@ impl fmt::Display for Config {
         }
 
         jconf.outbound_bind_addr = self.outbound_bind_addr.map(|i| i.to_string());
-        jconf.outbound_bind_interface = self.outbound_bind_interface.clone();
+        jconf.outbound_bind_interface.clone_from(&self.outbound_bind_interface);
 
         // Security
         if self.security.replay_attack.policy != ReplayAttackPolicy::default() {
