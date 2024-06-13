@@ -1,3 +1,24 @@
+shadowsocks-rust (1.19.4) unstable; urgency=medium
+
+  ## Features
+
+  - `local-online-config`: Making HTTP requests with `local-http`'s HttpClient implementation, mainly for supporting `outbound_*` socket configurations.
+
+  ## Miscellaneous
+
+  - Fixed build failures on some platforms.
+
+shadowsocks-rust (1.19.3) unstable; urgency=medium
+
+  ## Breaking Changes
+
+  - Feature `dns-over-h3` moved from feature `full` to `full-extra`. DNS over H3 is still an experimental feature.
+  - `local-fake-dns`: Disabled compression (zstd), which seems to be deprecated by [`sled`](https://crates.io/crates/sled).
+
+  ## Features
+
+  - `local-online-config`: Set 30s timeout for update HTTP requests.
+
 shadowsocks-rust (1.19.2) unstable; urgency=medium
 
   ## Bug Fixes
