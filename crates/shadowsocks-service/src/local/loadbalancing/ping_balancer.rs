@@ -818,29 +818,41 @@ struct PingChecker {
 impl PingChecker {
     /// Checks server's score and update into `ServerScore<E>`
     async fn check_update_score(self) {
-        let score = match self.check_delay().await {
-            Ok(d) => match self.server_type {
-                ServerType::Tcp => self.server.tcp_score().push_score(Score::Latency(d)).await,
-                ServerType::Udp => self.server.udp_score().push_score(Score::Latency(d)).await,
-            },
-            // Penalty
-            Err(..) => match self.server_type {
-                ServerType::Tcp => self.server.tcp_score().push_score(Score::Errored).await,
-                ServerType::Udp => self.server.udp_score().push_score(Score::Errored).await,
-            },
+        let server_score = match self.server_type {
+            ServerType::Tcp => self.server.tcp_score(),
+            ServerType::Udp => self.server.udp_score(),
         };
 
-        trace!(
-            "updated remote {} server {} (score: {})",
-            self.server_type,
-            self.server.server_config().addr(),
-            score
-        );
+        let (score, stat_data) = match self.check_delay().await {
+            Ok(d) => server_score.push_score_fetch_statistic(Score::Latency(d)).await,
+            // Penalty
+            Err(..) => server_score.push_score_fetch_statistic(Score::Errored).await,
+        };
+
+        if stat_data.fail_rate > 0.8 {
+            warn!(
+                "balancer: checked & updated remote {} server {} (score: {}), {:?}",
+                self.server_type,
+                ServerConfigFormatter::new(self.server.server_config()),
+                score,
+                stat_data,
+            );
+        } else {
+            debug!(
+                "balancer: checked & updated remote {} server {} (score: {}), {:?}",
+                self.server_type,
+                ServerConfigFormatter::new(self.server.server_config()),
+                score,
+                stat_data,
+            );
+        }
     }
 
     /// Detect TCP connectivity with Chromium [Network Portal Detection](https://www.chromium.org/chromium-os/chromiumos-design-docs/network-portal-detection)
     #[allow(dead_code)]
     async fn check_request_tcp_chromium(&self) -> io::Result<()> {
+        use std::io::{Error, ErrorKind};
+
         static GET_BODY: &[u8] =
             b"GET /generate_204 HTTP/1.1\r\nHost: clients3.google.com\r\nConnection: close\r\nAccept: */*\r\n\r\n";
 
@@ -860,27 +872,28 @@ impl PingChecker {
         let mut buf = Vec::new();
         reader.read_until(b'\n', &mut buf).await?;
 
-        static EXPECTED_HTTP_STATUS_LINE: &[u8] = b"HTTP/1.1 204 No Content\r\n";
-        if buf != EXPECTED_HTTP_STATUS_LINE {
-            use std::io::{Error, ErrorKind};
+        let mut headers = [httparse::EMPTY_HEADER; 1];
+        let mut response = httparse::Response::new(&mut headers);
 
-            debug!(
-                "unexpected response from http://clients3.google.com/generate_204, {:?}",
-                ByteStr::new(&buf)
-            );
-
-            let err = Error::new(
-                ErrorKind::InvalidData,
-                "unexpected response from http://clients3.google.com/generate_204",
-            );
-            return Err(err);
+        if let Ok(..) = response.parse(&buf) {
+            if matches!(response.code, Some(204)) {
+                return Ok(());
+            }
         }
 
-        Ok(())
+        Err(Error::new(
+            ErrorKind::InvalidData,
+            format!(
+                "unexpected response from http://clients3.google.com/generate_204, {:?}",
+                ByteStr::new(&buf)
+            ),
+        ))
     }
 
     /// Detect TCP connectivity with Firefox's http://detectportal.firefox.com/success.txt
     async fn check_request_tcp_firefox(&self) -> io::Result<()> {
+        use std::io::{Error, ErrorKind};
+
         static GET_BODY: &[u8] =
             b"GET /success.txt HTTP/1.1\r\nHost: detectportal.firefox.com\r\nConnection: close\r\nAccept: */*\r\n\r\n";
 
@@ -900,23 +913,22 @@ impl PingChecker {
         let mut buf = Vec::new();
         reader.read_until(b'\n', &mut buf).await?;
 
-        static EXPECTED_HTTP_STATUS_LINE: &[u8] = b"HTTP/1.1 200 OK\r\n";
-        if buf != EXPECTED_HTTP_STATUS_LINE {
-            use std::io::{Error, ErrorKind};
+        let mut headers = [httparse::EMPTY_HEADER; 1];
+        let mut response = httparse::Response::new(&mut headers);
 
-            debug!(
-                "unexpected response from http://detectportal.firefox.com/success.txt, {:?}",
-                ByteStr::new(&buf)
-            );
-
-            let err = Error::new(
-                ErrorKind::InvalidData,
-                "unexpected response from http://detectportal.firefox.com/success.txt",
-            );
-            return Err(err);
+        if let Ok(..) = response.parse(&buf) {
+            if matches!(response.code, Some(200) | Some(204)) {
+                return Ok(());
+            }
         }
 
-        Ok(())
+        Err(Error::new(
+            ErrorKind::InvalidData,
+            format!(
+                "unexpected response from http://detectportal.firefox.com/success.txt, {:?}",
+                ByteStr::new(&buf)
+            ),
+        ))
     }
 
     async fn check_request_udp(&self) -> io::Result<()> {
@@ -986,7 +998,7 @@ impl PingChecker {
                 trace!(
                     "checked remote {} server {} latency with {} ms",
                     self.server_type,
-                    self.server.server_config().addr(),
+                    ServerConfigFormatter::new(self.server.server_config()),
                     elapsed
                 );
                 Ok(elapsed)
@@ -995,7 +1007,7 @@ impl PingChecker {
                 debug!(
                     "failed to check {} server {}, error: {}",
                     self.server_type,
-                    self.server.server_config().addr(),
+                    ServerConfigFormatter::new(self.server.server_config()),
                     err
                 );
 
@@ -1009,7 +1021,7 @@ impl PingChecker {
                 trace!(
                     "checked remote {} server {} latency timeout, elapsed {} ms",
                     self.server_type,
-                    self.server.server_config().addr(),
+                    ServerConfigFormatter::new(self.server.server_config()),
                     elapsed
                 );
 
