@@ -444,7 +444,7 @@ impl ConfigType {
         self == ConfigType::Manager
     }
 
-    /// Chec if it is online config type (SIP008)
+    /// Check if it is online config type (SIP008)
     #[cfg(feature = "local-online-config")]
     pub fn is_online_config(self) -> bool {
         self == ConfigType::OnlineConfig
@@ -905,6 +905,9 @@ pub struct LocalConfig {
     /// Resolving Android's issue: [shadowsocks/shadowsocks-android#2571](https://github.com/shadowsocks/shadowsocks-android/issues/2571)
     pub udp_addr: Option<ServerAddr>,
 
+    /// UDP Associate address. Uses `udp_addr` if not specified
+    pub udp_associate_addr: Option<ServerAddr>,
+
     /// Destination address for tunnel
     #[cfg(feature = "local-tunnel")]
     pub forward_addr: Option<Address>,
@@ -1027,6 +1030,7 @@ impl LocalConfig {
 
             mode,
             udp_addr: None,
+            udp_associate_addr: None,
 
             #[cfg(feature = "local-tunnel")]
             forward_addr: None,
@@ -3144,7 +3148,7 @@ pub fn read_variable_field_value(value: &str) -> Cow<'_, str> {
                 Ok(value) => return value.into(),
                 Err(err) => {
                     warn!(
-                        "couldn't read password from environemnt variable {}, error: {}",
+                        "couldn't read password from environment variable {}, error: {}",
                         var_name, err
                     );
                 }
